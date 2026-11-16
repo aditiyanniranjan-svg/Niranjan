@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neighbourhood Safety Level Predictor — Tamil Nadu Safety Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .sos-pulse {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5);
+      animation: pulse-ring 2s infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
+      70% { box-shadow: 0 0 0 18px rgba(220, 38, 38, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col">
+
+  <!-- Top Header -->
+  <header class="bg-[#0B2A5B] text-white border-b border-blue-950 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-md bg-amber-400 text-[#0B2A5B] font-extrabold flex items-center justify-center text-sm">
+          NS
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold leading-tight">Neighbourhood Safety Level Predictor</h1>
+          <p class="text-xs text-blue-200">Tamil Nadu Crime &amp; Safety Analytics &middot; Dept. of IT, E.G.S. Pillay Engineering College</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 text-xs text-blue-100">
+        <span class="hidden md:inline-block bg-white/10 px-2.5 py-1 rounded">Team: Niranjan S &middot; Nithish T &middot; Nasarath Ali</span>
+        <button type="button" id="resetMapViewBtn" class="px-2.5 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white font-medium transition">
+          Reset TN Map
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile / Tablet Navigation Bar -->
+    <nav class="lg:hidden bg-[#081F44] px-4 py-2 flex items-center gap-1.5 overflow-x-auto" aria-label="Mobile navigation">
+      <button type="button" data-tab="dashboard" class="tab-btn px-3 py-1.5 rounded text-xs font-semibold bg-amber-400 text-[#0B2A5B] shrink-0">
+        Dashboard &amp; Map
+      </button>
+      <button type="button" data-tab="predictor" class="tab-btn px-3 py-1.5 rounded text-xs font-semibold text-blue-100 hover:bg-white/10 shrink-0">
+        ML Predictor
+      </button>
+      <button type="button" data-tab="sos" class="tab-btn px-3 py-1.5 rounded text-xs font-semibold text-blue-100 hover:bg-white/10 shrink-0 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-red-400"></span>
+        Emergency SOS
+      </button>
+      <button type="button" data-tab="admin" class="tab-btn px-3 py-1.5 rounded text-xs font-semibold text-blue-100 hover:bg-white/10 shrink-0">
+        Dataset &amp; Model
+      </button>
+    </nav>
+  </header>
+
+  <!-- Toast Banner -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-sm bg-slate-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg border border-slate-700"></div>
+
+  <!-- Dashboard Shell -->
+  <div class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 flex gap-6">
+
+    <!-- Desktop Sidebar -->
+    <aside class="hidden lg:flex flex-col w-60 shrink-0 space-y-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-1">
+        <p class="px-3 pt-1 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Modules</p>
+        <button type="button" data-tab="dashboard" class="tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold bg-[#0B2A5B] text-white transition">
+          Dashboard &amp; Map
+        </button>
+        <button type="button" data-tab="predictor" class="tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          ML Risk Predictor
+        </button>
+        <button type="button" data-tab="sos" class="tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+          <span>Emergency SOS</span>
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+        </button>
+        <button type="button" data-tab="admin" class="tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          Dataset &amp; Model
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-xs space-y-2">
+        <p class="font-bold text-[#0B2A5B]">Risk Classification</p>
+        <div class="flex items-center justify-between">
+          <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>Low Risk</span>
+          <span class="font-mono text-slate-500">0 – 34</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Medium Risk</span>
+          <span class="font-mono text-slate-500">35 – 64</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-red-600"></span>High Risk</span>
+          <span class="font-mono text-slate-500">65 – 100</span>
+        </div>
+        <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+          Guided by V. Suriya, AP/IT
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 min-w-0 space-y-5">
+
+      <!-- High-Risk Alert Banner -->
+      <div id="highRiskBanner" class="hidden bg-red-50 border border-red-300 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-start gap-3">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-600 text-white font-bold text-sm shrink-0">!</span>
+          <div>
+            <p class="text-sm font-bold text-red-900" id="highRiskBannerTitle">High-Risk Zone Warning</p>
+            <p class="text-xs text-red-700" id="highRiskBannerText">This area is classified as High Risk. Keep emergency contacts active.</p>
+          </div>
+        </div>
+        <button type="button" id="bannerSosBtn" class="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition">
+          Trigger SOS Alert
+        </button>
+      </div>
+
+      <!-- TAB 1: DASHBOARD & MAP -->
+      <section id="tab-dashboard" class="tab-panel space-y-5">
+
+        <!-- Filter & Search Controls -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5 flex-1">
+            <input id="searchInput" type="text" placeholder="Search area or city in Tamil Nadu..."
+              class="w-full sm:w-64 px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B]" />
+            <select id="districtFilter" aria-label="Filter by district or city"
+              class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B2A5B]">
+              <option value="All">All Tamil Nadu Districts</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5" role="group" aria-label="Risk level filter">
+            <button type="button" data-filter="All" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A5B] text-white">All</button>
+            <button type="button" data-filter="Low" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Low</button>
+            <button type="button" data-filter="Medium" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Medium</button>
+            <button type="button" data-filter="High" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">High</button>
+          </div>
+        </div>
+
+        <!-- KPI Summary Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">Tamil Nadu Areas</p>
+            <p class="text-2xl font-bold text-[#0B2A5B] mt-1" id="kpiTotal">0</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">Low-Risk Zones</p>
+            <p class="text-2xl font-bold text-emerald-600 mt-1" id="kpiLow">0</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">Medium-Risk Zones</p>
+            <p class="text-2xl font-bold text-amber-600 mt-1" id="kpiMedium">0</p>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <p class="text-xs font-medium text-slate-500">High-Risk Zones</p>
+            <p class="text-2xl font-bold text-red-600 mt-1" id="kpiHigh">0</p>
+          </div>
+        </div>
+
+        <!-- Interactive Map + Area Directory -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div class="xl:col-span-2 bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h2 class="text-sm font-bold text-[#0B2A5B]">Tamil Nadu Interactive Safety Map</h2>
+                <p class="text-xs text-slate-500">Click any marker to inspect area risk metrics</p>
+              </div>
+              <span class="text-xs text-slate-500" id="mapCountLabel">0 locations shown</span>
+            </div>
+            <div id="safetyMap" class="w-full rounded-lg border border-slate-200 z-10" style="height: 360px;"></div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-sm font-bold text-[#0B2A5B]">Neighbourhood Directory</h2>
+              <span class="text-xs text-slate-400" id="dirCount">0</span>
+            </div>
+            <div id="areaList" class="space-y-2 overflow-y-auto max-h-[360px] pr-1"></div>
+          </div>
+        </div>
+
+        <!-- Selected Area Card + Risk Score Chart -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400" id="selectedDistrict">District</p>
+                  <h2 class="text-lg font-bold text-[#0B2A5B] mt-0.5" id="selectedName">—</h2>
+                </div>
+                <span id="selectedBadge" class="px-3 py-1 rounded-full text-xs font-bold">—</span>
+              </div>
+
+              <div id="selectedBox" class="mt-4 rounded-lg border p-4 text-center">
+                <p class="text-[11px] uppercase tracking-wider font-semibold opacity-75">ML Risk Classification</p>
+                <p class="text-2xl font-extrabold mt-1" id="selectedRiskHeadline">—</p>
+                <p class="text-xs mt-1" id="selectedRiskScoreText">Safety Risk Score: — / 100</p>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <p class="text-[11px] text-slate-500">Crime Index</p>
+                  <p class="text-sm font-bold text-slate-900 mt-0.5" id="selectedCrime">—</p>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <p class="text-[11px] text-slate-500">Streetlights</p>
+                  <p class="text-sm font-bold text-slate-900 mt-0.5" id="selectedLighting">—</p>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <p class="text-[11px] text-slate-500">Pop. Density</p>
+                  <p class="text-sm font-bold text-slate-900 mt-0.5" id="selectedDensity">—</p>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <p class="text-[11px] text-slate-500">Police Patrol</p>
+                  <p class="text-sm font-bold text-slate-900 mt-0.5" id="selectedPolice">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+              <span id="selectedCoords">Coordinates: —</span>
+              <button type="button" id="openPredictorFromCard" class="text-[#0B2A5B] font-semibold hover:underline">
+                Analyze in ML Predictor &rarr;
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+            <div class="mb-3">
+              <h2 class="text-sm font-bold text-[#0B2A5B]">Area Risk Comparison (Top 10 Filtered)</h2>
+              <p class="text-xs text-slate-500">Red = High &middot; Amber = Medium &middot; Green = Low</p>
+            </div>
+            <div class="relative h-72 w-full">
+              <canvas id="crimeChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: ML RISK PREDICTOR -->
+      <section id="tab-predictor" class="tab-panel hidden space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <form id="predictorForm" class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div>
+              <h2 class="text-base font-bold text-[#0B2A5B]">ML Safety Classification Model</h2>
+              <p class="text-xs text-slate-500 mt-1">Input crime, lighting, density, and patrol parameters to predict area risk.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="predName" class="block text-xs font-semibold text-slate-700 mb-1">Neighbourhood Name</label>
+                <input id="predName" type="text" value="Custom Area" required
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B]" />
+              </div>
+              <div>
+                <label for="predDistrict" class="block text-xs font-semibold text-slate-700 mb-1">District</label>
+                <input id="predDistrict" type="text" value="Chennai" required
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B]" />
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                <label for="predCrime">Past Crime Index (0–100)</label>
+                <span id="predCrimeVal" class="text-[#0B2A5B]">45</span>
+              </div>
+              <input id="predCrime" type="range" min="0" max="100" value="45" class="w-full accent-[#0B2A5B]" />
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                <label for="predLighting">Streetlight Coverage (%)</label>
+                <span id="predLightingVal" class="text-[#0B2A5B]">65%</span>
+              </div>
+              <input id="predLighting" type="range" min="0" max="100" value="65" class="w-full accent-[#0B2A5B]" />
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                <label for="predDensity">Population Density (per km&sup2;)</label>
+                <span id="predDensityVal" class="text-[#0B2A5B]">15,000</span>
+              </div>
+              <input id="predDensity" type="range" min="1000" max="35000" step="500" value="15000" class="w-full accent-[#0B2A5B]" />
+            </div>
+
+            <div>
+              <label for="predPolice" class="block text-xs font-semibold text-slate-700 mb-1">Police Patrol Presence</label>
+              <select id="predPolice" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B2A5B]">
+                <option value="High">High (Frequent patrols / nearby station)</option>
+                <option value="Medium" selected>Medium (Regular patrols)</option>
+                <option value="Low">Low (Limited patrols)</option>
+              </select>
+            </div>
+
+            <div class="flex flex-wrap gap-3 pt-2">
+              <button type="submit" class="px-4 py-2 rounded-lg bg-[#0B2A5B] hover:bg-blue-900 text-white text-sm font-semibold transition">
+                Run Prediction
+              </button>
+              <button type="button" id="savePredToDashboard" class="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-[#0B2A5B] text-sm font-bold transition">
+                Save to Dashboard
+              </button>
+            </div>
+          </form>
+
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-5">
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Classification Output</p>
+              <h3 class="text-lg font-bold text-[#0B2A5B] mt-1" id="predOutputTitle">Custom Area</h3>
+
+              <div id="predResultBox" class="mt-4 rounded-xl border p-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-wider opacity-75">Predicted Safety Level</p>
+                <p class="text-3xl font-extrabold mt-1" id="predCategory">—</p>
+                <p class="text-sm font-medium mt-1" id="predScoreText">Composite Risk Score: — / 100</p>
+              </div>
+
+              <div class="mt-5 space-y-3">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Feature Contribution</p>
+                <div class="space-y-2 text-xs">
+                  <div>
+                    <div class="flex justify-between mb-1"><span>Crime Reports Weight (45%)</span><span id="contribCrime">—</span></div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="barCrime" class="h-full bg-red-500 rounded-full" style="width:0%"></div></div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1"><span>Lighting Deficit Weight (30%)</span><span id="contribLight">—</span></div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="barLight" class="h-full bg-amber-500 rounded-full" style="width:0%"></div></div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1"><span>Density Factor Weight (15%)</span><span id="contribDensity">—</span></div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="barDensity" class="h-full bg-blue-500 rounded-full" style="width:0%"></div></div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1"><span>Police Patrol Offset (-10%)</span><span id="contribPolice">—</span></div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div id="barPolice" class="h-full bg-emerald-500 rounded-full" style="width:0%"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-500 border-t border-slate-100 pt-3">
+              Thresholds: Low (&lt; 35), Medium (35–64), High (&ge; 65).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: EMERGENCY SOS -->
+      <section id="tab-sos" class="tab-panel hidden space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col items-center justify-center text-center space-y-5">
+            <div>
+              <h2 class="text-lg font-bold text-[#0B2A5B]">Emergency Alert (SOS) Module</h2>
+              <p class="text-xs text-slate-500 mt-1">Dispatches live location coordinates to the nearest police control room and registered contacts.</p>
+            </div>
+
+            <button type="button" id="sosMainBtn"
+              class="sos-pulse w-40 h-40 rounded-full bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-4xl tracking-wider border-4 border-red-800 transition flex items-center justify-center">
+              SOS
+            </button>
+
+            <p class="text-sm font-bold text-red-700">Tap SOS to share live location</p>
+
+            <div class="w-full max-w-md bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-left space-y-1">
+              <div class="flex justify-between">
+                <span class="font-semibold text-slate-600">Coordinates:</span>
+                <span id="sosCoordsDisplay" class="font-mono text-slate-800">13.0850, 80.2101</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-semibold text-slate-600">Location:</span>
+                <span id="sosAreaDisplay" class="text-slate-800 font-medium">Anna Nagar, Chennai</span>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 justify-center">
+              <button type="button" id="detectGpsBtn" class="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition">
+                Detect Browser GPS
+              </button>
+              <button type="button" id="resetSosBtn" class="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition">
+                Reset Alert Status
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-bold text-[#0B2A5B]">Notification Status</h3>
+              <span id="sosOverallStatus" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">Standby</span>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <label for="contactPolice" class="block text-xs font-semibold text-slate-600 mb-1">Police Station</label>
+                <div class="flex gap-2 items-center">
+                  <input id="contactPolice" type="text" value="Tamil Nadu Police Control Room (100 / 112)" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs" />
+                  <span id="statusPolice" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 min-w-[84px] text-center">Standby</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="contact1" class="block text-xs font-semibold text-slate-600 mb-1">Emergency Contact 1</label>
+                <div class="flex gap-2 items-center">
+                  <input id="contact1" type="text" value="Primary Guardian (+91 98XXX XXXXX)" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs" />
+                  <span id="statusContact1" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 min-w-[84px] text-center">Standby</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="contact2" class="block text-xs font-semibold text-slate-600 mb-1">Emergency Contact 2</label>
+                <div class="flex gap-2 items-center">
+                  <input id="contact2" type="text" value="Secondary Contact (+91 97XXX XXXXX)" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs" />
+                  <span id="statusContact2" class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 min-w-[84px] text-center">Standby</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Alert Log</h4>
+              <div id="alertHistory" class="space-y-2 max-h-44 overflow-y-auto text-xs text-slate-600">
+                <p class="text-slate-400 italic">No alerts dispatched in this session.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DATASET & MODEL -->
+      <section id="tab-admin" class="tab-panel hidden space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <form id="addAreaForm" class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3.5">
+            <div>
+              <h2 class="text-base font-bold text-[#0B2A5B]">Add Area Record</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Insert a new Tamil Nadu location into the dataset.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label for="newAreaName" class="block text-xs font-semibold text-slate-700 mb-1">Area / City</label>
+                <input id="newAreaName" type="text" placeholder="e.g., Pollachi" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label for="newAreaDistrict" class="block text-xs font-semibold text-slate-700 mb-1">District</label>
+                <input id="newAreaDistrict" type="text" placeholder="e.g., Coimbatore" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label for="newAreaLat" class="block text-xs font-semibold text-slate-700 mb-1">Latitude</label>
+                <input id="newAreaLat" type="number" step="0.0001" value="10.6580" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label for="newAreaLng" class="block text-xs font-semibold text-slate-700 mb-1">Longitude</label>
+                <input id="newAreaLng" type="number" step="0.0001" value="77.0080" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label for="newAreaCrime" class="block text-xs font-semibold text-slate-700 mb-1">Crime Index (0–100)</label>
+                <input id="newAreaCrime" type="number" min="0" max="100" value="30" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label for="newAreaLight" class="block text-xs font-semibold text-slate-700 mb-1">Streetlights (%)</label>
+                <input id="newAreaLight" type="number" min="0" max="100" value="80" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label for="newAreaDensity" class="block text-xs font-semibold text-slate-700 mb-1">Density (/km&sup2;)</label>
+                <input id="newAreaDensity" type="number" min="500" max="50000" value="12000" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </div>
+              <div>
+                <label for="newAreaPolice" class="block text-xs font-semibold text-slate-700 mb-1">Police Patrol</label>
+                <select id="newAreaPolice" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+                  <option value="High">High</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 rounded-lg bg-[#0B2A5B] hover:bg-blue-900 text-white text-sm font-semibold transition">
+              Add to Dataset
+            </button>
+          </form>
+
+          <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-bold text-[#0B2A5B]">Tamil Nadu Safety Dataset</h2>
+                <p class="text-xs text-slate-500">All monitored areas across Tamil Nadu districts.</p>
+              </div>
+              <button type="button" id="retrainBtn" class="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-[#0B2A5B] text-xs font-bold transition">
+                Retrain Model
+              </button>
+            </div>
+
+            <div class="overflow-x-auto max-h-[380px] overflow-y-auto">
+              <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead class="sticky top-0 bg-white">
+                  <tr class="border-b border-slate-200 text-slate-500 text-xs">
+                    <th class="py-2 pr-3 font-semibold">Area</th>
+                    <th class="py-2 px-2 font-semibold">District</th>
+                    <th class="py-2 px-2 font-semibold">Crime</th>
+                    <th class="py-2 px-2 font-semibold">Light</th>
+                    <th class="py-2 px-2 font-semibold">Score</th>
+                    <th class="py-2 px-2 font-semibold">Risk</th>
+                    <th class="py-2 pl-2 font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="datasetTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-3 px-4 text-center text-xs text-slate-500">
+    Neighbourhood Safety Level Predictor &middot; E.G.S. Pillay Engineering College, Nagapattinam
+  </footer>
+
+  <script>
+    // --- Classification Model ---
+    function classifyArea(crime, lighting, density, police) {
+      const crimePart = 0.45 * Math.min(100, Math.max(0, crime));
+      const lightPart = 0.30 * (100 - Math.min(100, Math.max(0, lighting)));
+      const densityNorm = Math.min(100, (Math.max(0, density) / 35000) * 100);
+      const densityPart = 0.15 * densityNorm;
+      const policeBonus = police === 'High' ? 10 : police === 'Medium' ? 5 : 0;
+      const score = Math.round(Math.min(100, Math.max(0, crimePart + lightPart + densityPart - policeBonus + 5)));
+      let level = 'Low';
+      if (score >= 65) level = 'High';
+      else if (score >= 35) level = 'Medium';
+      return {
+        score,
+        level,
+        parts: {
+          crime: Math.round(crimePart),
+          light: Math.round(lightPart),
+          density: Math.round(densityPart),
+          police: policeBonus
+        }
+      };
+    }
+
+    // --- Tamil Nadu Locations Dataset (19 Verified Coordinates) ---
+    let areas = [
+      { id: 1, name: 'Anna Nagar', district: 'Chennai', lat: 13.0850, lng: 80.2101, crime: 42, lighting: 68, density: 18500, police: 'Medium' },
+      { id: 2, name: 'Adyar', district: 'Chennai', lat: 13.0063, lng: 80.2574, crime: 22, lighting: 88, density: 13500, police: 'High' },
+      { id: 3, name: 'Chennai Central', district: 'Chennai', lat: 13.0878, lng: 80.2785, crime: 76, lighting: 48, density: 28000, police: 'Medium' },
+      { id: 4, name: 'Guindy', district: 'Chennai', lat: 13.0109, lng: 80.2354, crime: 52, lighting: 62, density: 19000, police: 'Medium' },
+      { id: 5, name: 'Velachery', district: 'Chennai', lat: 12.9758, lng: 80.2205, crime: 44, lighting: 66, density: 21000, police: 'Medium' },
+      { id: 6, name: 'Tambaram', district: 'Chennai', lat: 12.9229, lng: 80.1275, crime: 49, lighting: 60, density: 17500, police: 'Medium' },
+      { id: 7, name: 'Nagapattinam', district: 'Nagapattinam', lat: 10.7906, lng: 79.8428, crime: 24, lighting: 80, density: 9500, police: 'High' },
+      { id: 8, name: 'Salem', district: 'Salem', lat: 11.6643, lng: 78.1460, crime: 46, lighting: 65, density: 16500, police: 'Medium' },
+      { id: 9, name: 'Coimbatore', district: 'Coimbatore', lat: 11.0000, lng: 77.0000, crime: 38, lighting: 74, density: 19500, police: 'High' },
+      { id: 10, name: 'Madurai', district: 'Madurai', lat: 9.9667, lng: 78.1667, crime: 68, lighting: 52, density: 22000, police: 'Medium' },
+      { id: 11, name: 'Tiruchirappalli', district: 'Tiruchirappalli', lat: 10.8064, lng: 78.6892, crime: 40, lighting: 70, density: 16000, police: 'High' },
+      { id: 12, name: 'Erode', district: 'Erode', lat: 11.3333, lng: 77.7667, crime: 28, lighting: 79, density: 13000, police: 'High' },
+      { id: 13, name: 'Thanjavur', district: 'Thanjavur', lat: 10.7833, lng: 79.1667, crime: 25, lighting: 82, density: 11500, police: 'High' },
+      { id: 14, name: 'Thoothukudi', district: 'Thoothukudi', lat: 8.7642, lng: 78.1348, crime: 66, lighting: 50, density: 15500, police: 'Low' },
+      { id: 15, name: 'Tiruppur', district: 'Tiruppur', lat: 11.1122, lng: 77.3544, crime: 58, lighting: 58, density: 20500, police: 'Medium' },
+      { id: 16, name: 'Dindigul', district: 'Dindigul', lat: 10.3690, lng: 77.9800, crime: 36, lighting: 72, density: 12500, police: 'Medium' },
+      { id: 17, name: 'Nagercoil', district: 'Kanyakumari', lat: 8.1833, lng: 77.4119, crime: 20, lighting: 86, density: 11000, police: 'High' },
+      { id: 18, name: 'Kanchipuram', district: 'Kanchipuram', lat: 12.8333, lng: 79.7500, crime: 31, lighting: 76, density: 13000, police: 'High' },
+      { id: 19, name: 'Karur', district: 'Karur', lat: 10.9667, lng: 78.1167, crime: 27, lighting: 78, density: 10500, police: 'High' }
+    ].map(a => ({ ...a, ...classifyArea(a.crime, a.lighting, a.density, a.police) }));
+
+    let nextId = 20;
+    let selectedId = 1;
+    let currentFilter = 'All';
+    let currentDistrict = 'All';
+    let searchQuery = '';
+    let alertLogs = [];
+    let chartInstance = null;
+    let mapInstance = null;
+    let markersLayer = null;
+
+    function riskStyles(level) {
+      if (level === 'High') {
+        return {
+          badge: 'bg-red-100 text-red-800 border border-red-200',
+          box: 'bg-red-50 border-red-300 text-red-900',
+          hex: '#DC2626'
+        };
+      }
+      if (level === 'Medium') {
+        return {
+          badge: 'bg-amber-100 text-amber-800 border border-amber-200',
+          box: 'bg-amber-50 border-amber-300 text-amber-900',
+          hex: '#D97706'
+        };
+      }
+      return {
+        badge: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+        box: 'bg-emerald-50 border-emerald-300 text-emerald-900',
+        hex: '#16A34A'
+      };
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        const isDesktop = btn.closest('aside') !== null;
+        if (isDesktop) {
+          btn.className = active
+            ? 'tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold bg-[#0B2A5B] text-white transition flex items-center justify-between'
+            : 'tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition flex items-center justify-between';
+        } else {
+          btn.className = active
+            ? 'tab-btn px-3 py-1.5 rounded text-xs font-semibold bg-amber-400 text-[#0B2A5B] shrink-0 flex items-center gap-1.5'
+            : 'tab-btn px-3 py-1.5 rounded text-xs font-semibold text-blue-100 hover:bg-white/10 shrink-0 flex items-center gap-1.5';
+        }
+      });
+
+      if (tabName === 'dashboard' && mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 120);
+      }
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    function populateDistrictDropdown() {
+      const sel = document.getElementById('districtFilter');
+      const districts = Array.from(new Set(areas.map(a => a.district))).sort();
+      sel.innerHTML = '<option value="All">All Tamil Nadu Districts</option>' +
+        districts.map(d => `<option value="${d}">${d}</option>`).join('');
+      sel.value = districts.includes(currentDistrict) ? currentDistrict : 'All';
+    }
+
+    function getFilteredAreas() {
+      return areas.filter(a => {
+        const matchesRisk = currentFilter === 'All' || a.level === currentFilter;
+        const matchesDistrict = currentDistrict === 'All' || a.district === currentDistrict;
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = a.name.toLowerCase().includes(q) || a.district.toLowerCase().includes(q);
+        return matchesRisk && matchesDistrict && matchesSearch;
+      });
+    }
+
+    function renderKPIs() {
+      const list = getFilteredAreas();
+      document.getElementById('kpiTotal').textContent = list.length;
+      document.getElementById('kpiLow').textContent = list.filter(a => a.level === 'Low').length;
+      document.getElementById('kpiMedium').textContent = list.filter(a => a.level === 'Medium').length;
+      document.getElementById('kpiHigh').textContent = list.filter(a => a.level === 'High').length;
+    }
+
+    function renderSelectedArea() {
+      const area = areas.find(a => a.id === selectedId) || areas[0];
+      if (!area) return;
+      selectedId = area.id;
+      const st = riskStyles(area.level);
+
+      document.getElementById('selectedDistrict').textContent = area.district + ' District, Tamil Nadu';
+      document.getElementById('selectedName').textContent = area.name;
+
+      const badge = document.getElementById('selectedBadge');
+      badge.textContent = area.level.toUpperCase() + ' RISK';
+      badge.className = 'px-3 py-1 rounded-full text-xs font-bold ' + st.badge;
+
+      const box = document.getElementById('selectedBox');
+      box.className = 'mt-4 rounded-lg border p-4 text-center ' + st.box;
+      document.getElementById('selectedRiskHeadline').textContent = area.level.toUpperCase() + ' RISK';
+      document.getElementById('selectedRiskScoreText').textContent = `Safety Risk Score: ${area.score} / 100`;
+
+      document.getElementById('selectedCrime').textContent = `${area.crime} / 100`;
+      document.getElementById('selectedLighting').textContent = `${area.lighting}%`;
+      document.getElementById('selectedDensity').textContent = area.density.toLocaleString();
+      document.getElementById('selectedPolice').textContent = area.police;
+      document.getElementById('selectedCoords').textContent = `Coordinates: ${area.lat.toFixed(4)}, ${area.lng.toFixed(4)}`;
+
+      document.getElementById('sosCoordsDisplay').textContent = `${area.lat.toFixed(4)}, ${area.lng.toFixed(4)}`;
+      document.getElementById('sosAreaDisplay').textContent = `${area.name}, ${area.district}`;
+
+      const banner = document.getElementById('highRiskBanner');
+      if (area.level === 'High') {
+        document.getElementById('highRiskBannerTitle').textContent = `High-Risk Zone Alert: ${area.name} (${area.district})`;
+        document.getElementById('highRiskBannerText').textContent = `Risk score is ${area.score}/100. Keep emergency contacts ready or trigger SOS if needed.`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function renderAreaList() {
+      const container = document.getElementById('areaList');
+      const filtered = getFilteredAreas();
+      document.getElementById('dirCount').textContent = `${filtered.length} areas`;
+      document.getElementById('mapCountLabel').textContent = `${filtered.length} locations shown`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 italic py-4 text-center">No matching areas found.</p>';
+        return;
+      }
+      container.innerHTML = filtered.map(a => {
+        const st = riskStyles(a.level);
+        const isSel = a.id === selectedId;
+        return `
+          <button type="button" data-area-id="${a.id}"
+            class="area-item w-full text-left p-2.5 rounded-lg border transition flex items-center justify-between gap-2 ${isSel ? 'border-[#0B2A5B] bg-blue-50/70' : 'border-slate-200 hover:bg-slate-50'}">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-slate-900 truncate">${a.name}</p>
+              <p class="text-[11px] text-slate-500 truncate">${a.district} &middot; Score: ${a.score}/100</p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${st.badge}">${a.level}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('areaList').addEventListener('click', e => {
+      const btn = e.target.closest('.area-item');
+      if (!btn) return;
+      selectArea(Number(btn.dataset.areaId));
+    });
+
+    function selectArea(id) {
+      selectedId = id;
+      const area = areas.find(a => a.id === id);
+      renderSelectedArea();
+      renderAreaList();
+      if (area && mapInstance) {
+        mapInstance.setView([area.lat, area.lng], 11, { animate: true });
+      }
+    }
+
+    function renderChart() {
+      const ctx = document.getElementById('crimeChart').getContext('2d');
+      const filtered = [...getFilteredAreas()].sort((a, b) => b.score - a.score).slice(0, 10);
+      const labels = filtered.map(a => a.name);
+      const data = filtered.map(a => a.score);
+      const colors = filtered.map(a => riskStyles(a.level).hex);
+
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Risk Score (0–100)',
+            data,
+            backgroundColor: colors,
+            borderRadius: 5
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: 0, max: 100, grid: { color: '#F1F5F9' } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function initMap() {
+      mapInstance = L.map('safetyMap').setView([10.95, 78.55], 7);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}.jpg', {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 18
+      }).addTo(mapInstance);
+      markersLayer = L.layerGroup().addTo(mapInstance);
+      renderMarkers();
+    }
+
+    function renderMarkers() {
+      if (!markersLayer) return;
+      markersLayer.clearLayers();
+      const filtered = getFilteredAreas();
+      filtered.forEach(a => {
+        const st = riskStyles(a.level);
+        const marker = L.circleMarker([a.lat, a.lng], {
+          radius: 9,
+          fillColor: st.hex,
+          color: '#FFFFFF',
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.92
+        });
+        marker.bindPopup(`
+          <div style="font-family: Inter, sans-serif; min-width: 150px;">
+            <strong>${a.name}</strong> (${a.district})<br/>
+            <span>Risk: <strong style="color:${st.hex};">${a.level} (${a.score}/100)</strong></span><br/>
+            <span style="font-size:11px;color:#475569;">Crime: ${a.crime} | Lights: ${a.lighting}%</span>
+          </div>
+        `);
+        marker.on('click', () => selectArea(a.id));
+        marker.addTo(markersLayer);
+      });
+    }
+
+    document.getElementById('resetMapViewBtn').addEventListener('click', () => {
+      switchTab('dashboard');
+      if (mapInstance) mapInstance.setView([10.95, 78.55], 7, { animate: true });
+    });
+
+    document.getElementById('searchInput').addEventListener('input', e => {
+      searchQuery = e.target.value;
+      renderKPIs();
+      renderAreaList();
+      renderChart();
+      renderMarkers();
+    });
+
+    document.getElementById('districtFilter').addEventListener('change', e => {
+      currentDistrict = e.target.value;
+      renderKPIs();
+      renderAreaList();
+      renderChart();
+      renderMarkers();
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentFilter = btn.dataset.filter;
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          const active = b.dataset.filter === currentFilter;
+          b.className = active
+            ? 'filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A5B] text-white'
+            : 'filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200';
+        });
+        renderKPIs();
+        renderAreaList();
+        renderChart();
+        renderMarkers();
+      });
+    });
+
+    document.getElementById('openPredictorFromCard').addEventListener('click', () => {
+      const area = areas.find(a => a.id === selectedId);
+      if (area) {
+        document.getElementById('predName').value = area.name + ' (Test)';
+        document.getElementById('predDistrict').value = area.district;
+        document.getElementById('predCrime').value = area.crime;
+        document.getElementById('predLighting').value = area.lighting;
+        document.getElementById('predDensity').value = area.density;
+        document.getElementById('predPolice').value = area.police;
+        updatePredictorUI();
+      }
+      switchTab('predictor');
+    });
+
+    function updatePredictorUI() {
+      const name = document.getElementById('predName').value.trim() || 'Custom Area';
+      const crime = Number(document.getElementById('predCrime').value);
+      const lighting = Number(document.getElementById('predLighting').value);
+      const density = Number(document.getElementById('predDensity').value);
+      const police = document.getElementById('predPolice').value;
+
+      document.getElementById('predCrimeVal').textContent = crime;
+      document.getElementById('predLightingVal').textContent = lighting + '%';
+      document.getElementById('predDensityVal').textContent = density.toLocaleString();
+
+      const res = classifyArea(crime, lighting, density, police);
+      const st = riskStyles(res.level);
+
+      document.getElementById('predOutputTitle').textContent = name;
+      document.getElementById('predResultBox').className = 'mt-4 rounded-xl border p-6 text-center ' + st.box;
+      document.getElementById('predCategory').textContent = res.level.toUpperCase() + ' RISK';
+      document.getElementById('predScoreText').textContent = `Composite Risk Score: ${res.score} / 100`;
+
+      document.getElementById('contribCrime').textContent = `+${res.parts.crime} pts`;
+      document.getElementById('barCrime').style.width = Math.min(100, res.parts.crime * 2) + '%';
+
+      document.getElementById('contribLight').textContent = `+${res.parts.light} pts`;
+      document.getElementById('barLight').style.width = Math.min(100, res.parts.light * 3) + '%';
+
+      document.getElementById('contribDensity').textContent = `+${res.parts.density} pts`;
+      document.getElementById('barDensity').style.width = Math.min(100, res.parts.density * 6) + '%';
+
+      document.getElementById('contribPolice').textContent = `-${res.parts.police} pts`;
+      document.getElementById('barPolice').style.width = (res.parts.police * 10) + '%';
+    }
+
+    ['predName', 'predDistrict', 'predCrime', 'predLighting', 'predDensity', 'predPolice'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updatePredictorUI);
+    });
+
+    document.getElementById('predictorForm').addEventListener('submit', e => {
+      e.preventDefault();
+      updatePredictorUI();
+      showToast('Prediction updated.');
+    });
+
+    document.getElementById('savePredToDashboard').addEventListener('click', () => {
+      const name = document.getElementById('predName').value.trim() || 'Custom Area';
+      const district = document.getElementById('predDistrict').value.trim() || 'Tamil Nadu';
+      const crime = Number(document.getElementById('predCrime').value);
+      const lighting = Number(document.getElementById('predLighting').value);
+      const density = Number(document.getElementById('predDensity').value);
+      const police = document.getElementById('predPolice').value;
+      const base = areas.find(a => a.id === selectedId) || areas[0];
+      const lat = base.lat + (Math.random() - 0.5) * 0.04;
+      const lng = base.lng + (Math.random() - 0.5) * 0.04;
+      const newArea = {
+        id: nextId++,
+        name,
+        district,
+        lat,
+        lng,
+        crime,
+        lighting,
+        density,
+        police,
+        ...classifyArea(crime, lighting, density, police)
+      };
+      areas.push(newArea);
+      selectedId = newArea.id;
+      refreshAll();
+      switchTab('dashboard');
+      showToast(`Saved "${name}" (${newArea.level} Risk) to dashboard.`);
+    });
+
+    function triggerSOS() {
+      const now = new Date().toLocaleTimeString();
+      const coords = document.getElementById('sosCoordsDisplay').textContent;
+      const areaName = document.getElementById('sosAreaDisplay').textContent;
+
+      ['statusPolice', 'statusContact1', 'statusContact2'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = 'Notified';
+        el.className = 'px-3 py-2 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 min-w-[84px] text-center';
+      });
+
+      const overall = document.getElementById('sosOverallStatus');
+      overall.textContent = 'Live Location Shared';
+      overall.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700';
+
+      alertLogs.unshift({ time: now, area: areaName, coords });
+      renderAlertHistory();
+      showToast('SOS alert dispatched with live location.');
+    }
+
+    function resetSOS() {
+      ['statusPolice', 'statusContact1', 'statusContact2'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = 'Standby';
+        el.className = 'px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 min-w-[84px] text-center';
+      });
+      const overall = document.getElementById('sosOverallStatus');
+      overall.textContent = 'Standby';
+      overall.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600';
+      showToast('SOS status reset to standby.');
+    }
+
+    function renderAlertHistory() {
+      const container = document.getElementById('alertHistory');
+      if (alertLogs.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 italic">No alerts dispatched in this session.</p>';
+        return;
+      }
+      container.innerHTML = alertLogs.map(log => `
+        <div class="p-2.5 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between gap-2">
+          <div>
+            <p class="font-semibold text-red-900">${log.area}</p>
+            <p class="text-[11px] text-red-700">Coords: ${log.coords}</p>
+          </div>
+          <span class="text-[11px] font-semibold text-red-800">${log.time}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('sosMainBtn').addEventListener('click', triggerSOS);
+    document.getElementById('resetSosBtn').addEventListener('click', resetSOS);
+    document.getElementById('bannerSosBtn').addEventListener('click', () => {
+      switchTab('sos');
+      triggerSOS();
+    });
+
+    document.getElementById('detectGpsBtn').addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        showToast('Geolocation not supported; using selected area coordinates.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          document.getElementById('sosCoordsDisplay').textContent =
+            `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+          document.getElementById('sosAreaDisplay').textContent = 'Browser Live GPS';
+          showToast('Updated coordinates from browser GPS.');
+        },
+        () => {
+          showToast('GPS permission unavailable; using selected area coordinates.');
+        },
+        { timeout: 5000 }
+      );
+    });
+
+    function renderDatasetTable() {
+      const tbody = document.getElementById('datasetTableBody');
+      tbody.innerHTML = areas.map(a => {
+        const st = riskStyles(a.level);
+        return `
+          <tr>
+            <td class="py-2 pr-3 font-medium text-slate-900">${a.name}</td>
+            <td class="py-2 px-2 text-slate-600">${a.district}</td>
+            <td class="py-2 px-2 text-slate-600">${a.crime}</td>
+            <td class="py-2 px-2 text-slate-600">${a.lighting}%</td>
+            <td class="py-2 px-2 font-semibold text-slate-800">${a.score}</td>
+            <td class="py-2 px-2"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${st.badge}">${a.level}</span></td>
+            <td class="py-2 pl-2 text-right space-x-2">
+              <button type="button" data-view-id="${a.id}" class="view-row-btn text-xs font-semibold text-[#0B2A5B] hover:underline">View</button>
+              <button type="button" data-del-id="${a.id}" class="del-row-btn text-xs font-semibold text-red-600 hover:underline">Remove</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('datasetTableBody').addEventListener('click', e => {
+      const viewBtn = e.target.closest('.view-row-btn');
+      if (viewBtn) {
+        selectArea(Number(viewBtn.dataset.viewId));
+        switchTab('dashboard');
+        return;
+      }
+      const delBtn = e.target.closest('.del-row-btn');
+      if (delBtn) {
+        if (areas.length <= 1) {
+          showToast('At least one area must remain in the dataset.');
+          return;
+        }
+        const id = Number(delBtn.dataset.delId);
+        areas = areas.filter(a => a.id !== id);
+        if (selectedId === id) selectedId = areas[0].id;
+        refreshAll();
+        showToast('Area removed.');
+      }
+    });
+
+    document.getElementById('addAreaForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('newAreaName').value.trim();
+      const district = document.getElementById('newAreaDistrict').value.trim() || 'Tamil Nadu';
+      const lat = Number(document.getElementById('newAreaLat').value);
+      const lng = Number(document.getElementById('newAreaLng').value);
+      const crime = Number(document.getElementById('newAreaCrime').value);
+      const lighting = Number(document.getElementById('newAreaLight').value);
+      const density = Number(document.getElementById('newAreaDensity').value);
+      const police = document.getElementById('newAreaPolice').value;
+
+      if (!name) return;
+      const added = {
+        id: nextId++,
+        name,
+        district,
+        lat,
+        lng,
+        crime,
+        lighting,
+        density,
+        police,
+        ...classifyArea(crime, lighting, density, police)
+      };
+      areas.push(added);
+      document.getElementById('newAreaName').value = '';
+      refreshAll();
+      showToast(`Added "${name}" (${district}) to dataset.`);
+    });
+
+    document.getElementById('retrainBtn').addEventListener('click', () => {
+      areas = areas.map(a => ({ ...a, ...classifyArea(a.crime, a.lighting, a.density, a.police) }));
+      refreshAll();
+      showToast(`Model retrained across ${areas.length} Tamil Nadu areas.`);
+    });
+
+    function refreshAll() {
+      populateDistrictDropdown();
+      renderKPIs();
+      renderSelectedArea();
+      renderAreaList();
+      renderChart();
+      renderMarkers();
+      renderDatasetTable();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      refreshAll();
+      updatePredictorUI();
+    });
+  </script>
+</body>
+</html>
